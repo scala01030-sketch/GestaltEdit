@@ -19,6 +19,12 @@ NS_ASSUME_NONNULL_BEGIN
 /// GestaltEdit currently recognizes (developer beta 1 through beta 4 and 27.0).
 + (BOOL)isRunningSupportedOS;
 
+/// Returns whether the compile-time read-only probe configuration is active.
++ (BOOL)isReadOnlyProbeBuild;
+
+/// Returns whether the compile-time safety configuration is internally valid.
++ (BOOL)isBuildConfigurationSafe;
+
 /// Returns whether this build permits MobileGestalt writes. The default is
 /// read-only so unverified OS builds can be probed without changing the device.
 + (BOOL)areWritesEnabled;

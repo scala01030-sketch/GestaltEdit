@@ -21,6 +21,9 @@
 "Read-only compatibility probe" = "只读兼容性探测";
 "This build can read and export backups, but it cannot write MobileGestalt." = "此版本可读取并导出备份，但不能写入 MobileGestalt。";
 "This is a read-only compatibility probe. MobileGestalt writes are disabled." = "这是只读兼容性探测版。MobileGestalt 写入已禁用。";
+"Unsafe Build Configuration" = "不安全的构建配置";
+"This read-only probe was built with an invalid write configuration and will not run." = "此只读探测版使用了无效的写入配置，应用将不会运行。";
+"bad_query acquired a sandbox extension, but the MobileGestalt plist is not readable." = "bad_query 已取得沙盒扩展，但无法只读打开 MobileGestalt plist。";
 "Reload" = "重新读取";
 "Connected" = "已连接";
 "Current Device" = "当前设备";

@@ -10,7 +10,9 @@ struct GestaltEditApp: App {
     @StateObject private var viewModel = GestaltViewModel()
 
     init() {
-        AutomationCommand.runIfNeeded()
+        if GestaltAccess.isBuildConfigurationSafe() {
+            AutomationCommand.runIfNeeded()
+        }
     }
 
     var body: some Scene {

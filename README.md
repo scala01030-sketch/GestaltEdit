@@ -48,12 +48,12 @@ Edit `com.apple.MobileGestalt.plist` on-device. Capability presets, a full field
 - Developer Mode enabled
 - A signing tool such as [iLoader](https://github.com/nab138/iloader)
 
-The source defaults to a read-only compatibility probe (`GESTALT_ENABLE_WRITES=0`). It can test access and export backups, but every MobileGestalt save path fails closed before opening the file for writing.
+The source defaults to a read-only compatibility probe (`GESTALT_READ_ONLY_PROBE=1`, `GESTALT_ENABLE_WRITES=0`). The probe checks access with `O_RDONLY`, can export backups, and fails the build if probe and write modes are enabled together. Every MobileGestalt save path still fails closed before opening the file for writing.
 
 ## Install
 
 1. Download `GestaltEdit.ipa` from [Releases](https://github.com/frs0n/GestaltEdit/releases/latest).
-2. Install [iLoader](https://iloader.app/), connect your device, and sign in with your Apple ID (used only for local signing).
+2. Use a trusted local signing method. Do not provide a primary Apple ID password or 2FA code to an unverified third-party signing service.
 3. Import the IPA to sign and install it, then trust the certificate under Settings → General → VPN & Device Management.
 
 ## Credits

@@ -7,7 +7,9 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if GestaltAccess.isRunningSupportedOS() {
+            if !GestaltAccess.isBuildConfigurationSafe() {
+                UnsafeBuildConfigurationView()
+            } else if GestaltAccess.isRunningSupportedOS() {
                 TabView {
                     TweakWorkbench()
                         .tabItem { Label("Tools", systemImage: "switch.2") }
@@ -35,6 +37,22 @@ struct ContentView: View {
                 dismissButton: .default(Text("OK"))
             )
         }
+    }
+}
+
+private struct UnsafeBuildConfigurationView: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "xmark.shield")
+                .font(.system(size: 44))
+                .foregroundStyle(.red)
+            Text("Unsafe Build Configuration")
+                .font(.title2.weight(.semibold))
+            Text("This read-only probe was built with an invalid write configuration and will not run.")
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+        }
+        .padding(24)
     }
 }
 

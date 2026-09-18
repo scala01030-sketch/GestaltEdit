@@ -18,6 +18,14 @@
 #define GESTALT_ENABLE_WRITES 0
 #endif
 
+#ifndef GESTALT_READ_ONLY_PROBE
+#define GESTALT_READ_ONLY_PROBE 1
+#endif
+
+#if GESTALT_READ_ONLY_PROBE && GESTALT_ENABLE_WRITES
+#error "A read-only probe must not be built with MobileGestalt writes enabled."
+#endif
+
 static NSString * const kGestaltPlistFileName = @"com.apple.MobileGestalt.plist";
 
 static NSString * const kMobileGestaltCacheDirectory =
@@ -34,10 +42,11 @@ static NSError *GestaltError(NSInteger code, NSString *message)
                            userInfo:@{ NSLocalizedDescriptionKey: message }];
 }
 
-static BOOL GestaltCanOpenReadWrite(NSString *path)
+static BOOL GestaltCanOpen(NSString *path, BOOL requireWriteAccess)
 {
     int fd = open(path.fileSystemRepresentation,
-                  O_RDWR | O_CLOEXEC | O_NOFOLLOW);
+                  (requireWriteAccess ? O_RDWR : O_RDONLY) |
+                  O_CLOEXEC | O_NOFOLLOW);
     if (fd < 0) return NO;
     close(fd);
     return YES;
@@ -110,7 +119,17 @@ static BOOL GestaltWriteAll(int fd, NSData *data)
 
 + (BOOL)areWritesEnabled
 {
-    return GESTALT_ENABLE_WRITES == 1;
+    return GESTALT_ENABLE_WRITES == 1 && [self isBuildConfigurationSafe];
+}
+
++ (BOOL)isReadOnlyProbeBuild
+{
+    return GESTALT_READ_ONLY_PROBE == 1;
+}
+
++ (BOOL)isBuildConfigurationSafe
+{
+    return !(GESTALT_READ_ONLY_PROBE == 1 && GESTALT_ENABLE_WRITES == 1);
 }
 
 #pragma mark - Connection
@@ -152,10 +171,13 @@ static BOOL GestaltWriteAll(int fd, NSData *data)
             badQueryDetail ?: NSLocalizedString(@"bad_query failed.", nil));
         return NO;
     }
-    if (!GestaltCanOpenReadWrite(badQueryPlist)) {
+    BOOL requireWriteAccess = GestaltAccess.areWritesEnabled;
+    if (!GestaltCanOpen(badQueryPlist, requireWriteAccess)) {
         [badQueryLease invalidate];
-        if (error) *error = GestaltError(3, NSLocalizedString(
-            @"bad_query acquired a sandbox extension, but the MobileGestalt plist is not writable.", nil));
+        NSString *message = requireWriteAccess
+            ? NSLocalizedString(@"bad_query acquired a sandbox extension, but the MobileGestalt plist is not writable.", nil)
+            : NSLocalizedString(@"bad_query acquired a sandbox extension, but the MobileGestalt plist is not readable.", nil);
+        if (error) *error = GestaltError(3, message);
         return NO;
     }
 

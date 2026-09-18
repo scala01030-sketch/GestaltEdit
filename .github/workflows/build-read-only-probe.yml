@@ -17,14 +17,33 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Verify fail-closed source configuration
         run: |
           grep -F '#define GESTALT_ENABLE_WRITES 0' GestaltEdit/GestaltAccess.m
+          grep -F '#define GESTALT_READ_ONLY_PROBE 1' GestaltEdit/GestaltAccess.m
+          grep -F '#if GESTALT_READ_ONLY_PROBE && GESTALT_ENABLE_WRITES' GestaltEdit/GestaltAccess.m
           grep -F 'if (!GestaltAccess.areWritesEnabled)' GestaltEdit/GestaltAccess.m
+          grep -F '(requireWriteAccess ? O_RDWR : O_RDONLY)' GestaltEdit/GestaltAccess.m
           grep -F '24A435' GestaltEdit/GestaltAccess.m
           grep -F '"iPhone18,2": .init(marketingName: "iPhone 17 Pro Max", regulatoryModel: "A3257")' GestaltEdit/GestaltModels.swift
+
+      - name: Audit source capabilities
+        run: |
+          if grep -R -n -E --include='*.swift' --include='*.m' --include='*.mm' --include='*.c' \
+            'URLSession|NSURLSession|NSURLConnection|CFNetwork|NWConnection|Network\.framework' GestaltEdit; then
+            echo 'Unexpected network API reference in application source.' >&2
+            exit 1
+          fi
+          if find GestaltEdit -name '*.entitlements' -print -quit | grep -q .; then
+            echo 'Unexpected entitlements file in read-only probe source.' >&2
+            exit 1
+          fi
+          if grep -F 'CODE_SIGN_ENTITLEMENTS' GestaltEdit.xcodeproj/project.pbxproj; then
+            echo 'Unexpected CODE_SIGN_ENTITLEMENTS setting in read-only probe project.' >&2
+            exit 1
+          fi
 
       - name: Build unsigned read-only archive
         run: |
@@ -37,25 +56,39 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            'GCC_PREPROCESSOR_DEFINITIONS=$(inherited) GESTALT_ENABLE_WRITES=0'
+            'GCC_PREPROCESSOR_DEFINITIONS=$(inherited) GESTALT_READ_ONLY_PROBE=1 GESTALT_ENABLE_WRITES=0'
 
       - name: Verify and package unsigned IPA
         run: |
           APP="$RUNNER_TEMP/GestaltEditReadOnly.xcarchive/Products/Applications/GestaltEdit.app"
           test -d "$APP"
+          test ! -d "$APP/_CodeSignature"
+          test ! -f "$APP/embedded.mobileprovision"
+          test ! -d "$APP/PlugIns"
+          test ! -d "$APP/Frameworks"
           strings "$APP/GestaltEdit" | grep -F 'This is a read-only compatibility probe. MobileGestalt writes are disabled.'
+          otool -L "$APP/GestaltEdit" | tee "$RUNNER_TEMP/GestaltEdit.binary-libraries.txt"
+          if grep -E 'CFNetwork\.framework|Network\.framework' "$RUNNER_TEMP/GestaltEdit.binary-libraries.txt"; then
+            echo 'Unexpected direct network framework dependency.' >&2
+            exit 1
+          fi
+          shasum -a 256 "$APP/GestaltEdit" > "$RUNNER_TEMP/GestaltEdit.binary.sha256"
           mkdir -p "$RUNNER_TEMP/Payload"
           cp -R "$APP" "$RUNNER_TEMP/Payload/"
           cd "$RUNNER_TEMP"
-          zip -qry GestaltEdit-24A435-read-only-unsigned.ipa Payload
-          shasum -a 256 GestaltEdit-24A435-read-only-unsigned.ipa > GestaltEdit-24A435-read-only-unsigned.ipa.sha256
+          find Payload -type f -print | LC_ALL=C sort > GestaltEdit-24A435-read-only-unsigned.manifest.txt
+          zip -qry GestaltEdit-24A435-read-only-unsigned-hardened.ipa Payload
+          shasum -a 256 GestaltEdit-24A435-read-only-unsigned-hardened.ipa > GestaltEdit-24A435-read-only-unsigned-hardened.ipa.sha256
 
       - name: Upload read-only probe artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: GestaltEdit-24A435-read-only-unsigned
+          name: GestaltEdit-24A435-read-only-unsigned-hardened
           path: |
-            ${{ runner.temp }}/GestaltEdit-24A435-read-only-unsigned.ipa
-            ${{ runner.temp }}/GestaltEdit-24A435-read-only-unsigned.ipa.sha256
+            ${{ runner.temp }}/GestaltEdit-24A435-read-only-unsigned-hardened.ipa
+            ${{ runner.temp }}/GestaltEdit-24A435-read-only-unsigned-hardened.ipa.sha256
+            ${{ runner.temp }}/GestaltEdit.binary.sha256
+            ${{ runner.temp }}/GestaltEdit.binary-libraries.txt
+            ${{ runner.temp }}/GestaltEdit-24A435-read-only-unsigned.manifest.txt
           if-no-files-found: error
           retention-days: 7

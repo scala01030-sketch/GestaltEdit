@@ -48,12 +48,12 @@
 - 设备已开启开发者模式
 - 一种签名安装方式，例如 [iLoader](https://github.com/nab138/iloader)
 
-源码默认是只读兼容性探测版（`GESTALT_ENABLE_WRITES=0`）。它可以测试访问并导出备份，但所有 MobileGestalt 保存路径都会在以写入方式打开文件前拒绝操作。
+源码默认是只读兼容性探测版（`GESTALT_READ_ONLY_PROBE=1`、`GESTALT_ENABLE_WRITES=0`）。探测版只用 `O_RDONLY` 检查访问权限，可以导出备份；如果只读探测和写入模式同时启用，编译会直接失败。所有 MobileGestalt 保存路径仍会在以写入方式打开文件前拒绝操作。
 
 ## 安装
 
 1. 从 [Releases](https://github.com/frs0n/GestaltEdit/releases/latest) 下载 `GestaltEdit.ipa`。
-2. 安装 [iLoader](https://iloader.app/)，连接设备并登录 Apple ID（仅用于本地签名）。
+2. 使用可信的本地签名方式；不要向未经验证的第三方签名服务提交主 Apple ID 密码或双重认证验证码。
 3. 导入 IPA 完成签名安装，然后在「设置」→「通用」→「VPN 与设备管理」中信任证书。
 
 ## 致谢
