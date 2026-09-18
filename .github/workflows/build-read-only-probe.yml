@@ -80,6 +80,30 @@ jobs:
           zip -qry GestaltEdit-24A435-read-only-unsigned-hardened.ipa Payload
           shasum -a 256 GestaltEdit-24A435-read-only-unsigned-hardened.ipa > GestaltEdit-24A435-read-only-unsigned-hardened.ipa.sha256
 
+      - name: Publish build audit summary
+        run: |
+          cat "$RUNNER_TEMP/GestaltEdit.binary.sha256"
+          cat "$RUNNER_TEMP/GestaltEdit-24A435-read-only-unsigned-hardened.ipa.sha256"
+          cat "$RUNNER_TEMP/GestaltEdit.binary-libraries.txt"
+          {
+            echo '## Read-only probe audit'
+            echo
+            echo '### Main binary SHA-256'
+            echo '```text'
+            cat "$RUNNER_TEMP/GestaltEdit.binary.sha256"
+            echo '```'
+            echo
+            echo '### Unsigned IPA SHA-256'
+            echo '```text'
+            cat "$RUNNER_TEMP/GestaltEdit-24A435-read-only-unsigned-hardened.ipa.sha256"
+            echo '```'
+            echo
+            echo '### Direct binary dependencies'
+            echo '```text'
+            cat "$RUNNER_TEMP/GestaltEdit.binary-libraries.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload read-only probe artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
