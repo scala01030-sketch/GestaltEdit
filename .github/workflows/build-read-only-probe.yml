@@ -26,6 +26,7 @@ jobs:
           grep -F '#if GESTALT_READ_ONLY_PROBE && GESTALT_ENABLE_WRITES' GestaltEdit/GestaltAccess.m
           grep -F 'if (!GestaltAccess.areWritesEnabled)' GestaltEdit/GestaltAccess.m
           grep -F '(requireWriteAccess ? O_RDWR : O_RDONLY)' GestaltEdit/GestaltAccess.m
+          grep -F '#if GESTALT_WRITE_BUILD' GestaltEdit/NeoSpringView.swift
           grep -F '24A435' GestaltEdit/GestaltAccess.m
           grep -F '"iPhone18,2": .init(marketingName: "iPhone 17 Pro Max", regulatoryModel: "A3257")' GestaltEdit/GestaltModels.swift
 
@@ -68,8 +69,8 @@ jobs:
           test ! -d "$APP/Frameworks"
           strings "$APP/GestaltEdit" | grep -F 'This is a read-only compatibility probe. MobileGestalt writes are disabled.'
           otool -L "$APP/GestaltEdit" | tee "$RUNNER_TEMP/GestaltEdit.binary-libraries.txt"
-          if grep -E 'CFNetwork\.framework|Network\.framework' "$RUNNER_TEMP/GestaltEdit.binary-libraries.txt"; then
-            echo 'Unexpected direct network framework dependency.' >&2
+          if grep -E 'CFNetwork\.framework|Network\.framework|WebKit\.framework' "$RUNNER_TEMP/GestaltEdit.binary-libraries.txt"; then
+            echo 'Unexpected direct network or respring framework dependency.' >&2
             exit 1
           fi
           shasum -a 256 "$APP/GestaltEdit" > "$RUNNER_TEMP/GestaltEdit.binary.sha256"

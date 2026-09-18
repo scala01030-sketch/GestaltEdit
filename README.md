@@ -48,7 +48,7 @@ Edit `com.apple.MobileGestalt.plist` on-device. Capability presets, a full field
 - Developer Mode enabled
 - A signing tool such as [iLoader](https://github.com/nab138/iloader)
 
-The source defaults to a read-only compatibility probe (`GESTALT_READ_ONLY_PROBE=1`, `GESTALT_ENABLE_WRITES=0`). The probe checks access with `O_RDONLY`, can export backups, and fails the build if probe and write modes are enabled together. Every MobileGestalt save path still fails closed before opening the file for writing.
+The source defaults to a read-only compatibility probe (`GESTALT_READ_ONLY_PROBE=1`, `GESTALT_ENABLE_WRITES=0`). The probe checks access with `O_RDONLY`, can export backups, and fails the build if probe and write modes are enabled together. Every MobileGestalt save path still fails closed before opening the file for writing. The WebKit-based respring payload is excluded unless the separate Swift `GESTALT_WRITE_BUILD` condition is explicitly enabled.
 
 ## Install
 

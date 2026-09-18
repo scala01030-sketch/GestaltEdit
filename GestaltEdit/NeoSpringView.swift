@@ -8,6 +8,8 @@
 //
 
 import SwiftUI
+
+#if GESTALT_WRITE_BUILD
 import WebKit
 
 struct NeoSpringView: View {
@@ -79,3 +81,10 @@ private struct NeoSpringWebView: UIViewRepresentable {
     </html>
     """#
 }
+#else
+struct NeoSpringView: View {
+    var body: some View {
+        EmptyView()
+    }
+}
+#endif

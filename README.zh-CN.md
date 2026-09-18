@@ -48,7 +48,7 @@
 - 设备已开启开发者模式
 - 一种签名安装方式，例如 [iLoader](https://github.com/nab138/iloader)
 
-源码默认是只读兼容性探测版（`GESTALT_READ_ONLY_PROBE=1`、`GESTALT_ENABLE_WRITES=0`）。探测版只用 `O_RDONLY` 检查访问权限，可以导出备份；如果只读探测和写入模式同时启用，编译会直接失败。所有 MobileGestalt 保存路径仍会在以写入方式打开文件前拒绝操作。
+源码默认是只读兼容性探测版（`GESTALT_READ_ONLY_PROBE=1`、`GESTALT_ENABLE_WRITES=0`）。探测版只用 `O_RDONLY` 检查访问权限，可以导出备份；如果只读探测和写入模式同时启用，编译会直接失败。所有 MobileGestalt 保存路径仍会在以写入方式打开文件前拒绝操作。除非显式启用独立的 Swift `GESTALT_WRITE_BUILD` 条件，否则不会编译基于 WebKit 的注销负载。
 
 ## 安装
 
