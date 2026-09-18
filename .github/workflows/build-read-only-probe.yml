@@ -1,0 +1,61 @@
+name: Build read-only compatibility probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: read-only-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Verify fail-closed source configuration
+        run: |
+          grep -F '#define GESTALT_ENABLE_WRITES 0' GestaltEdit/GestaltAccess.m
+          grep -F 'if (!GestaltAccess.areWritesEnabled)' GestaltEdit/GestaltAccess.m
+          grep -F '24A435' GestaltEdit/GestaltAccess.m
+          grep -F '"iPhone18,2": .init(marketingName: "iPhone 17 Pro Max", regulatoryModel: "A3257")' GestaltEdit/GestaltModels.swift
+
+      - name: Build unsigned read-only archive
+        run: |
+          xcodebuild archive \
+            -project GestaltEdit.xcodeproj \
+            -scheme GestaltEdit \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$RUNNER_TEMP/GestaltEditReadOnly.xcarchive" \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            'GCC_PREPROCESSOR_DEFINITIONS=$(inherited) GESTALT_ENABLE_WRITES=0'
+
+      - name: Verify and package unsigned IPA
+        run: |
+          APP="$RUNNER_TEMP/GestaltEditReadOnly.xcarchive/Products/Applications/GestaltEdit.app"
+          test -d "$APP"
+          strings "$APP/GestaltEdit" | grep -F 'This is a read-only compatibility probe. MobileGestalt writes are disabled.'
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/Payload/"
+          cd "$RUNNER_TEMP"
+          zip -qry GestaltEdit-24A435-read-only-unsigned.ipa Payload
+          shasum -a 256 GestaltEdit-24A435-read-only-unsigned.ipa > GestaltEdit-24A435-read-only-unsigned.ipa.sha256
+
+      - name: Upload read-only probe artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: GestaltEdit-24A435-read-only-unsigned
+          path: |
+            ${{ runner.temp }}/GestaltEdit-24A435-read-only-unsigned.ipa
+            ${{ runner.temp }}/GestaltEdit-24A435-read-only-unsigned.ipa.sha256
+          if-no-files-found: error
+          retention-days: 7

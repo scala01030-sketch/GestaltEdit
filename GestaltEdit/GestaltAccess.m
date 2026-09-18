@@ -14,6 +14,10 @@
 #import <sys/sysctl.h>
 #import <unistd.h>
 
+#ifndef GESTALT_ENABLE_WRITES
+#define GESTALT_ENABLE_WRITES 0
+#endif
+
 static NSString * const kGestaltPlistFileName = @"com.apple.MobileGestalt.plist";
 
 static NSString * const kMobileGestaltCacheDirectory =
@@ -98,8 +102,15 @@ static BOOL GestaltWriteAll(int fd, NSData *data)
         [build isEqualToString:@"24A5380h"] || // iOS / iPadOS 27 beta 3
         [build isEqualToString:@"24A5380i"] || // iPadOS 27 beta 3 v2
         [build isEqualToString:@"24A5380l"] || // iOS / iPadOS 27 Public Beta 1 (revised beta 3, see issue #51)
-        [build isEqualToString:@"24A5390f"]    // iOS / iPadOS 27 beta 4
+        [build isEqualToString:@"24A5390f"] || // iOS / iPadOS 27 beta 4
+        [build isEqualToString:@"24A435"] ||   // iOS / iPadOS 27.0 RC
+        [build isEqualToString:@"24A437"]      // iOS / iPadOS 27.0 release
     );
+}
+
++ (BOOL)areWritesEnabled
+{
+    return GESTALT_ENABLE_WRITES == 1;
 }
 
 #pragma mark - Connection
@@ -108,7 +119,7 @@ static BOOL GestaltWriteAll(int fd, NSData *data)
 {
     if (!GestaltAccess.isRunningSupportedOS) {
         if (error) *error = GestaltError(0, NSLocalizedString(
-            @"GestaltEdit currently supports only iOS and iPadOS 27 beta 1 through beta 4.", nil));
+            @"GestaltEdit supports selected iOS and iPadOS 27 builds only.", nil));
         return NO;
     }
 
@@ -200,6 +211,11 @@ static BOOL GestaltWriteAll(int fd, NSData *data)
 
 - (BOOL)saveGestalt:(NSDictionary *)plist error:(NSError **)error
 {
+    if (!GestaltAccess.areWritesEnabled) {
+        if (error) *error = GestaltError(12, NSLocalizedString(
+            @"This is a read-only compatibility probe. MobileGestalt writes are disabled.", nil));
+        return NO;
+    }
     if (![self connectWithError:error]) return NO;
     if (![plist isKindOfClass:NSDictionary.class]) {
         if (error) *error = GestaltError(6, NSLocalizedString(@"The content to save is not a dictionary.", nil));

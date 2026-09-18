@@ -17,7 +17,10 @@
 "Reading MobileGestalt…" = "正在读取 MobileGestalt…";
 "Unable to read MobileGestalt" = "无法读取 MobileGestalt";
 "Unsupported OS Version" = "不支持的系统版本";
-"GestaltEdit currently supports only iOS and iPadOS 27 beta 1 through beta 4." = "GestaltEdit 目前仅支持 iOS 和 iPadOS 27 beta 1 至 beta 4。";
+"GestaltEdit supports selected iOS and iPadOS 27 builds only." = "GestaltEdit 仅支持指定的 iOS 和 iPadOS 27 build。";
+"Read-only compatibility probe" = "只读兼容性探测";
+"This build can read and export backups, but it cannot write MobileGestalt." = "此版本可读取并导出备份，但不能写入 MobileGestalt。";
+"This is a read-only compatibility probe. MobileGestalt writes are disabled." = "这是只读兼容性探测版。MobileGestalt 写入已禁用。";
 "Reload" = "重新读取";
 "Connected" = "已连接";
 "Current Device" = "当前设备";

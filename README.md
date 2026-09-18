@@ -43,8 +43,12 @@ Edit `com.apple.MobileGestalt.plist` on-device. Capability presets, a full field
 ## Requirements
 
 - iOS / iPadOS 27 beta 1–4
+- iOS / iPadOS 27.0 RC (24A435) passes the version gate; the `bad_query` access path is not verified on this build
+- iOS / iPadOS 27.0 release (24A437) passes the version gate; the `bad_query` access path is not verified on this build
 - Developer Mode enabled
 - A signing tool such as [iLoader](https://github.com/nab138/iloader)
+
+The source defaults to a read-only compatibility probe (`GESTALT_ENABLE_WRITES=0`). It can test access and export backups, but every MobileGestalt save path fails closed before opening the file for writing.
 
 ## Install
 

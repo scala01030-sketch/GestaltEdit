@@ -33,6 +33,7 @@ struct AIRegionProfile: Equatable {
         "iPhone17,3": .init(marketingName: "iPhone 16", regulatoryModel: "A3081"),
         "iPhone17,4": .init(marketingName: "iPhone 16 Plus", regulatoryModel: "A3082"),
         "iPhone17,5": .init(marketingName: "iPhone 16e", regulatoryModel: "A3212"),
+        "iPhone18,2": .init(marketingName: "iPhone 17 Pro Max", regulatoryModel: "A3257"),
 
         // Apple Intelligence iPads. Cellular variants map to their US
         // equivalent, including devices sold originally in mainland China.

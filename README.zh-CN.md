@@ -43,8 +43,12 @@
 ## 系统要求
 
 - iOS / iPadOS 27 beta 1–4
+- iOS / iPadOS 27.0 RC（24A435）可通过版本检查；`bad_query` 访问路径尚未在该 build 上验证
+- iOS / iPadOS 27.0 正式版（24A437）可通过版本检查；`bad_query` 访问路径尚未在该 build 上验证
 - 设备已开启开发者模式
 - 一种签名安装方式，例如 [iLoader](https://github.com/nab138/iloader)
+
+源码默认是只读兼容性探测版（`GESTALT_ENABLE_WRITES=0`）。它可以测试访问并导出备份，但所有 MobileGestalt 保存路径都会在以写入方式打开文件前拒绝操作。
 
 ## 安装
 

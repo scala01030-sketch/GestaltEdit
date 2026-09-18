@@ -46,7 +46,7 @@ private struct UnsupportedOSView: View {
                 .foregroundStyle(.secondary)
             Text("Unsupported OS Version")
                 .font(.title2.weight(.semibold))
-            Text("GestaltEdit currently supports only iOS and iPadOS 27 beta 1 through beta 4.")
+            Text("GestaltEdit supports selected iOS and iPadOS 27 builds only.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
         }
@@ -60,6 +60,14 @@ private struct TweakWorkbench: View {
     var body: some View {
         NavigationStack {
             List {
+                if !GestaltAccess.areWritesEnabled() {
+                    Section {
+                        Label("Read-only compatibility probe", systemImage: "lock.shield")
+                            .foregroundStyle(.orange)
+                    } footer: {
+                        Text("This build can read and export backups, but it cannot write MobileGestalt.")
+                    }
+                }
                 Section { deviceStatus }
 
                 if viewModel.plist != nil {
@@ -216,7 +224,7 @@ private struct TweakWorkbench: View {
             Spacer()
             Button("Apply") { viewModel.applySelectedTweaks() }
                 .buttonStyle(.borderedProminent)
-                .disabled(viewModel.isBusy)
+                .disabled(viewModel.isBusy || !GestaltAccess.areWritesEnabled())
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -448,10 +456,11 @@ private struct BackupRow: View {
             }
             .accessibilityLabel("Export Backup")
             Button("Restore", action: restore)
-            .buttonStyle(.borderedProminent)
-            .buttonBorderShape(.capsule)
-            .controlSize(.small)
-            .accessibilityLabel("Restore Backup")
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
+                .controlSize(.small)
+                .accessibilityLabel("Restore Backup")
+                .disabled(!GestaltAccess.areWritesEnabled())
         }
     }
 }
@@ -509,11 +518,11 @@ private struct AdvancedGestaltEditor: View {
                     Image(systemName: "plus")
                 }
                 .accessibilityLabel("Add CacheExtra Field")
-                .disabled(viewModel.plist == nil || viewModel.isBusy)
+                .disabled(viewModel.plist == nil || viewModel.isBusy || !GestaltAccess.areWritesEnabled())
 
                 Button("Save", action: viewModel.applyChanges)
                     .fontWeight(.semibold)
-                    .disabled(!viewModel.isDirty || viewModel.isBusy)
+                    .disabled(!viewModel.isDirty || viewModel.isBusy || !GestaltAccess.areWritesEnabled())
             }
         }
         .sheet(item: $activeEditor) { editor in
