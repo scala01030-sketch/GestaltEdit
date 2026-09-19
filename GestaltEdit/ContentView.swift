@@ -9,6 +9,16 @@ struct ContentView: View {
         Group {
             if !GestaltAccess.isBuildConfigurationSafe() {
                 UnsafeBuildConfigurationView()
+            } else if GestaltAccess.isRunningSupportedOS() && !GestaltAccess.isSystemAccessAllowed() {
+                VStack(spacing: 16) {
+                    Image(systemName: "lock.shield").font(.system(size: 44))
+                    Text("已识别系统版本，但已阻止访问")
+                        .font(.title2.weight(.semibold))
+                    Text("Build: \(GestaltAccess.currentOSBuild())")
+                    Text("此 RC／正式版没有经过验证的 MobileGestalt 访问方式。未执行系统缓存访问，不能启用 Siri AI。请勿通过旧版或修改编译开关绕过检查。")
+                        .multilineTextAlignment(.center)
+                }
+                .padding(24)
             } else if GestaltAccess.isRunningSupportedOS() {
                 TabView {
                     TweakWorkbench()
@@ -20,7 +30,9 @@ struct ContentView: View {
                     BackupLibrary()
                         .tabItem { Label("Restore", systemImage: "archivebox") }
                 }
-                .task { viewModel.load() }
+                .task {
+                    if !GestaltAccess.isReadOnlyProbeBuild() { viewModel.load() }
+                }
             } else {
                 UnsupportedOSView()
             }
@@ -127,7 +139,9 @@ private struct TweakWorkbench: View {
             }
             .navigationTitle("MobileGestalt")
             .navigationBarTitleDisplayMode(.large)
-            .refreshable { viewModel.load() }
+            .refreshable {
+                if !GestaltAccess.isReadOnlyProbeBuild() { viewModel.load() }
+            }
             .safeAreaInset(edge: .bottom) {
                 if viewModel.hasStagedTweaks {
                     applyBar
@@ -181,10 +195,15 @@ private struct TweakWorkbench: View {
     private var deviceStatus: some View {
         if viewModel.plist == nil {
             HStack(spacing: 10) {
-                if viewModel.isBusy || !viewModel.hasAttemptedLoad {
+                if viewModel.isBusy {
                     ProgressView()
                         .controlSize(.small)
                     Text("Reading MobileGestalt…")
+                } else if !viewModel.hasAttemptedLoad {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("尚未读取系统缓存。私有接口仍有风险；每次启动最多尝试一次，失败后请停止。")
+                        Button("开始一次只读快照", action: viewModel.load)
+                    }
                 } else {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
@@ -192,12 +211,13 @@ private struct TweakWorkbench: View {
                         Text("Unable to read MobileGestalt")
                         Button("Reload", action: viewModel.load)
                             .font(.footnote)
+                            .disabled(GestaltAccess.isReadOnlyProbeBuild())
                     }
                 }
             }
         } else {
             LabeledContent {
-                Text("Connected")
+                Text(GestaltAccess.isReadOnlyProbeBuild() ? "只读快照（不是实时连接）" : "Connected")
                     .foregroundStyle(.green)
             } label: {
                 Label(viewModel.aiRegionProfile?.marketingName ?? String(localized: "Current Device"), systemImage: "iphone")

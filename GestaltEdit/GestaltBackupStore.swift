@@ -16,9 +16,16 @@ enum GestaltBackupStore {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss-SSS"
         let url = directory
-            .appendingPathComponent("MobileGestalt_\(formatter.string(from: Date()))")
+            .appendingPathComponent("MobileGestalt_\(formatter.string(from: Date()))_\(UUID().uuidString)")
             .appendingPathExtension("plist")
-        try data.write(to: url, options: .atomic)
+        let stagingURL = url.appendingPathExtension("partial")
+        // Only publish a complete, verified file; moveItem refuses an existing destination.
+        defer { try? FileManager.default.removeItem(at: stagingURL) }
+        try data.write(to: stagingURL, options: [.atomic, .completeFileProtection])
+        guard try Data(contentsOf: stagingURL) == data else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        try FileManager.default.moveItem(at: stagingURL, to: url)
         return try metadata(for: url)
     }
 
@@ -49,8 +56,14 @@ enum GestaltBackupStore {
             appropriateFor: nil,
             create: true
         )
-        let directory = documents.appendingPathComponent("MobileGestalt Backups", isDirectory: true)
+        var directory = documents.appendingPathComponent("MobileGestalt Backups", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        if GestaltAccess.isReadOnlyProbeBuild() {
+            // Diagnostic copies are sensitive and are not an entire-device backup.
+            var values = URLResourceValues()
+            values.isExcludedFromBackup = true
+            try directory.setResourceValues(values)
+        }
         return directory
     }
 

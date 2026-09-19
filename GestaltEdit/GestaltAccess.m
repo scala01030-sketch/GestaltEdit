@@ -12,6 +12,7 @@
 #import <errno.h>
 #import <fcntl.h>
 #import <sys/sysctl.h>
+#import <sys/stat.h>
 #import <unistd.h>
 
 #ifndef GESTALT_ENABLE_WRITES
@@ -24,6 +25,12 @@
 
 #if GESTALT_READ_ONLY_PROBE && GESTALT_ENABLE_WRITES
 #error "A read-only probe must not be built with MobileGestalt writes enabled."
+#endif
+
+#if (GESTALT_ENABLE_WRITES != 0 && GESTALT_ENABLE_WRITES != 1) || \
+    (GESTALT_READ_ONLY_PROBE != 0 && GESTALT_READ_ONLY_PROBE != 1) || \
+    (GESTALT_ENABLE_WRITES + GESTALT_READ_ONLY_PROBE != 1)
+#error "Select exactly one mode using Boolean configuration values."
 #endif
 
 static NSString * const kGestaltPlistFileName = @"com.apple.MobileGestalt.plist";
@@ -52,6 +59,7 @@ static BOOL GestaltCanOpen(NSString *path, BOOL requireWriteAccess)
     return YES;
 }
 
+#if GESTALT_ENABLE_WRITES
 static BOOL GestaltWriteAll(int fd, NSData *data)
 {
     const uint8_t *bytes = data.bytes;
@@ -65,6 +73,50 @@ static BOOL GestaltWriteAll(int fd, NSData *data)
     }
     return YES;
 }
+#endif
+
+#if GESTALT_READ_ONLY_PROBE
+// One descriptor, no memory mapping, no symlink following, bounded allocation.
+// This does not make the private API itself risk-free or its lease read-only.
+static NSData *GestaltReadSnapshot(NSString *path, NSError **error)
+{
+    int fd = open(path.fileSystemRepresentation, O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK);
+    if (fd < 0) {
+        if (error) *error = GestaltError(4, @"Cannot open a read-only snapshot.");
+        return nil;
+    }
+    struct stat before, after;
+    NSMutableData *data = nil;
+    BOOL valid = NO;
+    if (fstat(fd, &before) == 0 && S_ISREG(before.st_mode) &&
+        before.st_size > 0 && before.st_size <= 16 * 1024 * 1024) {
+        data = [NSMutableData dataWithLength:(NSUInteger)before.st_size];
+        NSUInteger offset = 0;
+        while (offset < data.length) {
+            ssize_t count = read(fd, (uint8_t *)data.mutableBytes + offset, data.length - offset);
+            if (count < 0 && errno == EINTR) continue;
+            if (count <= 0) break;
+            offset += (NSUInteger)count;
+        }
+        valid = offset == data.length && fstat(fd, &after) == 0 &&
+            before.st_size == after.st_size &&
+            before.st_mtimespec.tv_sec == after.st_mtimespec.tv_sec &&
+            before.st_mtimespec.tv_nsec == after.st_mtimespec.tv_nsec &&
+            before.st_ctimespec.tv_sec == after.st_ctimespec.tv_sec &&
+            before.st_ctimespec.tv_nsec == after.st_ctimespec.tv_nsec;
+    }
+    close(fd);
+    id plist = valid ? [NSPropertyListSerialization propertyListWithData:data
+        options:0 format:NULL error:NULL] : nil;
+    if (![plist isKindOfClass:NSDictionary.class] ||
+        ![plist[@"CacheExtra"] isKindOfClass:NSDictionary.class]) {
+        if (error) *error = GestaltError(5, @"Snapshot is missing, changed during reading, oversized, or has an invalid CacheExtra dictionary.");
+        return nil;
+    }
+    if (error) *error = nil;
+    return [data copy];
+}
+#endif
 
 @interface GestaltAccess ()
 @property (nonatomic, assign) BOOL isConnected;
@@ -75,6 +127,12 @@ static BOOL GestaltWriteAll(int fd, NSData *data)
 @implementation GestaltAccess
 {
     BadQueryLease *_activeBadQueryLease;
+#if GESTALT_READ_ONLY_PROBE
+    BOOL _probeAttempted;
+    BOOL _probeReadInProgress;
+    NSData *_probeSnapshot;
+    NSError *_probeError;
+#endif
 }
 
 + (instancetype)shared
@@ -119,7 +177,17 @@ static BOOL GestaltWriteAll(int fd, NSData *data)
 
 + (BOOL)areWritesEnabled
 {
-    return GESTALT_ENABLE_WRITES == 1 && [self isBuildConfigurationSafe];
+    return GESTALT_ENABLE_WRITES == 1 && [self isBuildConfigurationSafe] &&
+        [self isSystemAccessAllowed];
+}
+
++ (BOOL)isSystemAccessAllowed
+{
+    // The upstream access primitive only claims support through beta 4.
+    // Do not probe RC/release or enable their writes by changing build flags.
+    NSString *build = self.currentOSBuild;
+    return [self isRunningSupportedOS] &&
+        [@[@"24A5355q", @"24A5370h", @"24A5380h", @"24A5380i", @"24A5380l", @"24A5390f"] containsObject:build];
 }
 
 + (BOOL)isReadOnlyProbeBuild
@@ -136,11 +204,18 @@ static BOOL GestaltWriteAll(int fd, NSData *data)
 
 - (BOOL)connectWithError:(NSError **)error
 {
-    if (!GestaltAccess.isRunningSupportedOS) {
+    @synchronized (self) {
+    if (![[self class] isSystemAccessAllowed]) {
         if (error) *error = GestaltError(0, NSLocalizedString(
-            @"GestaltEdit supports selected iOS and iPadOS 27 builds only.", nil));
+            @"System access is blocked: this build has no validated MobileGestalt access path.", nil));
         return NO;
     }
+#if GESTALT_READ_ONLY_PROBE
+    if (!_probeReadInProgress) {
+        if (error) *error = GestaltError(13, @"Direct connection is disabled. Use the single read-only snapshot operation.");
+        return NO;
+    }
+#endif
 
     if (self.isConnected && _activeBadQueryLease.isActive &&
         self.plistPath.length > 0) {
@@ -186,12 +261,36 @@ static BOOL GestaltWriteAll(int fd, NSData *data)
     self.plistPath = badQueryPlist;
     if (error) *error = nil;
     return YES;
+    }
 }
 
 #pragma mark - Read / Write
 
 - (NSData *)readGestaltDataWithError:(NSError **)error
 {
+#if GESTALT_READ_ONLY_PROBE
+    @synchronized (self) {
+        if (!_probeAttempted) {
+            _probeAttempted = YES;
+            _probeReadInProgress = YES;
+            NSError *readError = nil;
+            @try {
+                if ([self connectWithError:&readError]) {
+                    _probeSnapshot = GestaltReadSnapshot(self.plistPath, &readError);
+                }
+                _probeError = readError;
+            } @finally {
+                [_activeBadQueryLease invalidate];
+                _activeBadQueryLease = nil;
+                self.isConnected = NO;
+                self.plistPath = nil;
+                _probeReadInProgress = NO;
+            }
+        }
+        if (error) *error = _probeError;
+        return _probeSnapshot;
+    }
+#else
     if (![self connectWithError:error]) return nil;
     if (![[NSFileManager defaultManager] fileExistsAtPath:self.plistPath]) {
         if (error) *error = GestaltError(3,
@@ -209,6 +308,7 @@ static BOOL GestaltWriteAll(int fd, NSData *data)
     }
     if (error) *error = nil;
     return data;
+#endif
 }
 
 - (NSDictionary *)readGestaltWithError:(NSError **)error
@@ -233,11 +333,14 @@ static BOOL GestaltWriteAll(int fd, NSData *data)
 
 - (BOOL)saveGestalt:(NSDictionary *)plist error:(NSError **)error
 {
-    if (!GestaltAccess.areWritesEnabled) {
+    if (![[self class] areWritesEnabled]) {
         if (error) *error = GestaltError(12, NSLocalizedString(
             @"This is a read-only compatibility probe. MobileGestalt writes are disabled.", nil));
         return NO;
     }
+#if !GESTALT_ENABLE_WRITES
+    return NO;
+#else
     if (![self connectWithError:error]) return NO;
     if (![plist isKindOfClass:NSDictionary.class]) {
         if (error) *error = GestaltError(6, NSLocalizedString(@"The content to save is not a dictionary.", nil));
@@ -303,6 +406,7 @@ static BOOL GestaltWriteAll(int fd, NSData *data)
 
     if (error) *error = nil;
     return YES;
+#endif
 }
 
 @end

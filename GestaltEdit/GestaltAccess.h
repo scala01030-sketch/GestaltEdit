@@ -25,20 +25,23 @@ NS_ASSUME_NONNULL_BEGIN
 /// Returns whether the compile-time safety configuration is internally valid.
 + (BOOL)isBuildConfigurationSafe;
 
-/// Returns whether this build permits MobileGestalt writes. The default is
-/// read-only so unverified OS builds can be probed without changing the device.
+/// Access is permitted only on the original beta allowlist. Recognition of a
+/// later build is not evidence that its private-API access path works safely.
++ (BOOL)isSystemAccessAllowed;
+
+/// Returns whether this build and OS permit MobileGestalt writes.
 + (BOOL)areWritesEnabled;
 
 /// The Darwin build identifier used by the supported-OS check, such as
 /// "24A5390f". An empty string means the build identifier could not be read.
 + (NSString *)currentOSBuild;
 
-/// Acquires a bad_query lease and verifies the plist is writable. Idempotent.
+/// Acquires a lease for a write build. Read-only callers must use readGestalt.
 - (BOOL)connectWithError:(NSError **)error;
 
-/// Reads and parses the live plist. Detects the on-disk format (XML/binary).
+/// Reads and parses the plist. Read-only builds cache one validated snapshot.
 - (nullable NSDictionary *)readGestaltWithError:(NSError **)error;
-/// Reads the live plist without parsing or re-serializing it.
+/// Returns original bytes. Read-only builds never retry a failed acquisition.
 - (nullable NSData *)readGestaltDataWithError:(NSError **)error;
 /// Rewrites the existing plist inode and preserves its ownership, flags and
 /// extended attributes. Fails without touching the file when writes are disabled.

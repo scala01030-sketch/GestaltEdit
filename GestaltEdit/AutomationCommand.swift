@@ -8,6 +8,9 @@ enum AutomationCommand {
     static func runIfNeeded() {
         let arguments = CommandLine.arguments
         guard let commandIndex = arguments.firstIndex(of: argument) else { return }
+        guard GestaltAccess.areWritesEnabled() else {
+            finish(marker: failureMarker, message: "Read-only or unsupported build: automation is disabled")
+        }
 
         let modelIndex = arguments.index(after: commandIndex)
         guard modelIndex < arguments.endIndex else {

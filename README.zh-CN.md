@@ -1,3 +1,5 @@
+> **安全复核分支，不是 Siri AI 正式兼容版。** 已识别 RC `24A435` 和正式版 `24A437`，但在私有 API 调用前阻止系统访问。不要安装旧 fork 产物绕过此限制。下方原作者的下载链接不代表经过本次复核的构建。详见[最终安全复核](docs/FINAL_SAFETY_REVIEW.md)。
+
 <div align="center">
 
 <img src="docs/icon.png" alt="GestaltEdit 应用图标" width="128" height="128">
@@ -43,14 +45,16 @@
 ## 系统要求
 
 - iOS / iPadOS 27 beta 1–4
-- iOS / iPadOS 27.0 RC（24A435）可通过版本检查；`bad_query` 访问路径尚未在该 build 上验证
-- iOS / iPadOS 27.0 正式版（24A437）可通过版本检查；`bad_query` 访问路径尚未在该 build 上验证
+- iOS / iPadOS 27.0 RC（24A435）已识别，系统访问被阻止
+- iOS / iPadOS 27.0 正式版（24A437）已识别，系统访问被阻止
 - 设备已开启开发者模式
 - 一种签名安装方式，例如 [iLoader](https://github.com/nab138/iloader)
 
-源码默认是只读兼容性探测版（`GESTALT_READ_ONLY_PROBE=1`、`GESTALT_ENABLE_WRITES=0`）。探测版只用 `O_RDONLY` 检查访问权限，可以导出备份；如果只读探测和写入模式同时启用，编译会直接失败。所有 MobileGestalt 保存路径仍会在以写入方式打开文件前拒绝操作。除非显式启用独立的 Swift `GESTALT_WRITE_BUILD` 条件，否则不会编译基于 WebKit 的注销负载。
+源码默认是只读探测版（`GESTALT_READ_ONLY_PROBE=1`、`GESTALT_ENABLE_WRITES=0`）。仅原 beta 白名单允许手动触发一次快照；本次进程内失败不重试，导出复用第一次读取的原始字节，尝试结束即释放租约。`O_RDONLY` 只约束文件操作，不表示私有沙盒租约本身是只读权限。复核构建不编译 MobileGestalt 写入实现或 WebKit 注销负载。探测备份使用文件保护并排除系统备份，请在卸载前私下导出；它是诊断副本，不是已验证的系统恢复机制。
 
 ## 安装
+
+**当前 RC／正式版目标停止安装。** 以下是原作者安装说明，不是本次设备操作的许可。复核构建使用独立标识 `me.ssus.gestaltedit.readonlyprobe`，签名时不得改回已安装应用的标识。
 
 1. 从 [Releases](https://github.com/frs0n/GestaltEdit/releases/latest) 下载 `GestaltEdit.ipa`。
 2. 使用可信的本地签名方式；不要向未经验证的第三方签名服务提交主 Apple ID 密码或双重认证验证码。

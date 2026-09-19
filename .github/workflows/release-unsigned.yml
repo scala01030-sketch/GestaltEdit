@@ -6,7 +6,7 @@ on:
       - "v*"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: unsigned-release-${{ github.ref }}
@@ -14,6 +14,10 @@ concurrency:
 
 jobs:
   release:
+    # This fork must not publish the legacy writable release by tagging v*.
+    if: github.repository == 'frs0n/GestaltEdit'
+    permissions:
+      contents: write
     runs-on: xcode-27
     timeout-minutes: 30
 

@@ -9,6 +9,10 @@
 
 import SwiftUI
 
+#if GESTALT_READ_ONLY_BUILD && GESTALT_WRITE_BUILD
+#error("A read-only build must not include the respring payload.")
+#endif
+
 #if GESTALT_WRITE_BUILD
 import WebKit
 

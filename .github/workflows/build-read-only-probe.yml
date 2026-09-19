@@ -24,11 +24,16 @@ jobs:
           grep -F '#define GESTALT_ENABLE_WRITES 0' GestaltEdit/GestaltAccess.m
           grep -F '#define GESTALT_READ_ONLY_PROBE 1' GestaltEdit/GestaltAccess.m
           grep -F '#if GESTALT_READ_ONLY_PROBE && GESTALT_ENABLE_WRITES' GestaltEdit/GestaltAccess.m
-          grep -F 'if (!GestaltAccess.areWritesEnabled)' GestaltEdit/GestaltAccess.m
+          grep -F 'if (![[self class] areWritesEnabled])' GestaltEdit/GestaltAccess.m
           grep -F '(requireWriteAccess ? O_RDWR : O_RDONLY)' GestaltEdit/GestaltAccess.m
           grep -F '#if GESTALT_WRITE_BUILD' GestaltEdit/NeoSpringView.swift
           grep -F '24A435' GestaltEdit/GestaltAccess.m
           grep -F '"iPhone18,2": .init(marketingName: "iPhone 17 Pro Max", regulatoryModel: "A3257")' GestaltEdit/GestaltModels.swift
+
+      - name: Run isolated safety and compiler-rejection tests
+        run: |
+          node tests/verify-source.mjs
+          bash tests/run-safety-tests.sh
 
       - name: Audit source capabilities
         run: |
@@ -57,6 +62,7 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
+            SWIFT_ACTIVE_COMPILATION_CONDITIONS=GESTALT_READ_ONLY_BUILD \
             'GCC_PREPROCESSOR_DEFINITIONS=$(inherited) GESTALT_READ_ONLY_PROBE=1 GESTALT_ENABLE_WRITES=0'
 
       - name: Verify and package unsigned IPA
@@ -67,6 +73,11 @@ jobs:
           test ! -f "$APP/embedded.mobileprovision"
           test ! -d "$APP/PlugIns"
           test ! -d "$APP/Frameworks"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")" = me.ssus.gestaltedit.readonlyprobe
+          if nm -u "$APP/GestaltEdit" | grep -E '_(ftruncate|fsync)$'; then
+            echo 'MobileGestalt write implementation was not excluded.' >&2
+            exit 1
+          fi
           strings "$APP/GestaltEdit" | grep -F 'This is a read-only compatibility probe. MobileGestalt writes are disabled.'
           otool -L "$APP/GestaltEdit" | tee "$RUNNER_TEMP/GestaltEdit.binary-libraries.txt"
           if grep -E 'CFNetwork\.framework|Network\.framework|WebKit\.framework' "$RUNNER_TEMP/GestaltEdit.binary-libraries.txt"; then
@@ -77,14 +88,14 @@ jobs:
           mkdir -p "$RUNNER_TEMP/Payload"
           cp -R "$APP" "$RUNNER_TEMP/Payload/"
           cd "$RUNNER_TEMP"
-          find Payload -type f -print | LC_ALL=C sort > GestaltEdit-24A435-read-only-unsigned.manifest.txt
-          zip -qry GestaltEdit-24A435-read-only-unsigned-hardened.ipa Payload
-          shasum -a 256 GestaltEdit-24A435-read-only-unsigned-hardened.ipa > GestaltEdit-24A435-read-only-unsigned-hardened.ipa.sha256
+          find Payload -type f -exec shasum -a 256 {} \; | LC_ALL=C sort > GestaltEdit-reviewed.manifest.sha256
+          zip -qry GestaltEdit-reviewed-unsigned.ipa Payload
+          shasum -a 256 GestaltEdit-reviewed-unsigned.ipa > GestaltEdit-reviewed-unsigned.ipa.sha256
 
       - name: Publish build audit summary
         run: |
           cat "$RUNNER_TEMP/GestaltEdit.binary.sha256"
-          cat "$RUNNER_TEMP/GestaltEdit-24A435-read-only-unsigned-hardened.ipa.sha256"
+          cat "$RUNNER_TEMP/GestaltEdit-reviewed-unsigned.ipa.sha256"
           cat "$RUNNER_TEMP/GestaltEdit.binary-libraries.txt"
           {
             echo '## Read-only probe audit'
@@ -96,7 +107,7 @@ jobs:
             echo
             echo '### Unsigned IPA SHA-256'
             echo '```text'
-            cat "$RUNNER_TEMP/GestaltEdit-24A435-read-only-unsigned-hardened.ipa.sha256"
+            cat "$RUNNER_TEMP/GestaltEdit-reviewed-unsigned.ipa.sha256"
             echo '```'
             echo
             echo '### Direct binary dependencies'
@@ -108,12 +119,12 @@ jobs:
       - name: Upload read-only probe artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: GestaltEdit-24A435-read-only-unsigned-hardened
+          name: GestaltEdit-reviewed-unsigned-DO-NOT-INSTALL-ON-RC
           path: |
-            ${{ runner.temp }}/GestaltEdit-24A435-read-only-unsigned-hardened.ipa
-            ${{ runner.temp }}/GestaltEdit-24A435-read-only-unsigned-hardened.ipa.sha256
+            ${{ runner.temp }}/GestaltEdit-reviewed-unsigned.ipa
+            ${{ runner.temp }}/GestaltEdit-reviewed-unsigned.ipa.sha256
             ${{ runner.temp }}/GestaltEdit.binary.sha256
             ${{ runner.temp }}/GestaltEdit.binary-libraries.txt
-            ${{ runner.temp }}/GestaltEdit-24A435-read-only-unsigned.manifest.txt
+            ${{ runner.temp }}/GestaltEdit-reviewed.manifest.sha256
           if-no-files-found: error
           retention-days: 7

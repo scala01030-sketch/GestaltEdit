@@ -1,3 +1,5 @@
+> **Safety-review fork: not a Siri AI compatibility release.** RC `24A435` and release `24A437` are recognized but blocked before private-API access. Do not install earlier fork artifacts to bypass this stop. The upstream download links below are not reviewed fork builds. See [safety review](docs/FINAL_SAFETY_REVIEW.md).
+
 <div align="center">
 
 <img src="docs/icon.png" alt="GestaltEdit app icon" width="128" height="128">
@@ -43,14 +45,16 @@ Edit `com.apple.MobileGestalt.plist` on-device. Capability presets, a full field
 ## Requirements
 
 - iOS / iPadOS 27 beta 1–4
-- iOS / iPadOS 27.0 RC (24A435) passes the version gate; the `bad_query` access path is not verified on this build
-- iOS / iPadOS 27.0 release (24A437) passes the version gate; the `bad_query` access path is not verified on this build
+- iOS / iPadOS 27.0 RC (24A435) is recognized; system access is blocked
+- iOS / iPadOS 27.0 release (24A437) is recognized; system access is blocked
 - Developer Mode enabled
 - A signing tool such as [iLoader](https://github.com/nab138/iloader)
 
-The source defaults to a read-only compatibility probe (`GESTALT_READ_ONLY_PROBE=1`, `GESTALT_ENABLE_WRITES=0`). The probe checks access with `O_RDONLY`, can export backups, and fails the build if probe and write modes are enabled together. Every MobileGestalt save path still fails closed before opening the file for writing. The WebKit-based respring payload is excluded unless the separate Swift `GESTALT_WRITE_BUILD` condition is explicitly enabled.
+The source defaults to a read-only probe (`GESTALT_READ_ONLY_PROBE=1`, `GESTALT_ENABLE_WRITES=0`). On the original beta allowlist only, a manual action captures at most one validated snapshot per process; failures cannot retry. Exports reuse its original bytes. The lease is released after the attempt. `O_RDONLY` restricts file operations, not the privileges of the private sandbox lease. The write implementation and WebKit respring payload are excluded from the reviewed build. Backups in this probe are protected diagnostic copies excluded from system backup; export them privately before uninstalling. They are not a verified system-restore mechanism.
 
 ## Install
+
+**Installation is blocked for this review's RC/release target.** The instructions below describe upstream installation, not authorization to install this fork. Reviewed builds use a separate `me.ssus.gestaltedit.readonlyprobe` bundle ID; signing must not replace it with an installed app's ID.
 
 1. Download `GestaltEdit.ipa` from [Releases](https://github.com/frs0n/GestaltEdit/releases/latest).
 2. Use a trusted local signing method. Do not provide a primary Apple ID password or 2FA code to an unverified third-party signing service.

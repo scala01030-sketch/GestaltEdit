@@ -50,13 +50,13 @@ final class GestaltViewModel: ObservableObject {
 
     func load() {
         guard !isBusy else { return }
+        guard !GestaltAccess.isReadOnlyProbeBuild() || !hasAttemptedLoad else { return }
         hasAttemptedLoad = true
         isBusy = true
         notice = nil
 
         defer { isBusy = false }
         do {
-            try access.connect()
             guard let dictionary = try access.readGestalt() as? [String: Any] else {
                 throw GestaltEditError.invalidPlist
             }
@@ -143,10 +143,10 @@ final class GestaltViewModel: ObservableObject {
 
     func createBackup() {
         guard !isBusy else { return }
+        guard !GestaltAccess.isReadOnlyProbeBuild() || plist != nil else { return }
         isBusy = true
         defer { isBusy = false }
         do {
-            try access.connect()
             let data = try access.readGestaltData()
             let backup = try GestaltBackupStore.create(from: data)
             refreshBackups()
@@ -238,6 +238,10 @@ final class GestaltViewModel: ObservableObject {
         expectedAIRegion: AIRegionConfiguration?,
         completion: (() -> Void)? = nil
     ) {
+        guard GestaltAccess.areWritesEnabled() else {
+            report(GestaltEditError.readOnly)
+            return
+        }
         isBusy = true
         notice = nil
 
@@ -286,6 +290,7 @@ final class GestaltViewModel: ObservableObject {
 }
 
 private enum GestaltEditError: LocalizedError {
+    case readOnly
     case invalidPlist
     case invalidBackup
     case verificationFailed
@@ -293,6 +298,7 @@ private enum GestaltEditError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
+        case .readOnly: String(localized: "This is a read-only compatibility probe. MobileGestalt writes are disabled.")
         case .invalidPlist: String(localized: "The MobileGestalt plist is not a valid dictionary.")
         case .invalidBackup: String(localized: "The backup is not a valid MobileGestalt plist.")
         case .verificationFailed: String(localized: "The MobileGestalt values after writing do not match the expected values.")
