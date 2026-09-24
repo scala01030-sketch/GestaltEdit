@@ -10,7 +10,9 @@ Original mutation code and the bridge body are retained without algorithm change
 
 ## Verification
 
-Existing source assertions and isolated safety tests remain required. `tests/run-install-smoke-tests.sh` links the actual source files with the installation flag, not a mock bridge; it asserts that `BadQueryLease` is absent and every access method refuses, and rejects unsafe flags. The iOS archive must have the isolated Bundle ID, no embedded profile/signature/plugins/frameworks, no private bridge/write/dynamic-loader symbols or target sandbox strings, and no direct WebKit/network framework dependencies. CI emits complete file hashes, binary/IPA hashes, symbols and dependencies. These checks do not approve a subsequently signed package.
+Existing source assertions and isolated safety tests remain required. `tests/run-install-smoke-tests.sh` links the actual source files with the installation flag, not a mock bridge; it asserts that `BadQueryLease` is absent and every access method refuses, and rejects unsafe flags. The iOS archive must have the isolated Bundle ID, no embedded profile/signature/plugins/frameworks, no private bridge/write/dlopen symbols or target sandbox strings, and no direct WebKit/network framework dependencies. CI emits complete file hashes, binary/IPA hashes, symbols and dependencies. These checks do not approve a subsequently signed package.
+
+Initial audits correctly stopped publication on a `dlsym` import requiring investigation. Link-map and disassembly evidence traced every call to Clang's `libclang_rt.ios.a(os_version_check.c.o)` function `__initializeAvailabilityCheck`, which resolves CoreFoundation functions for public OS-version checks, not ContainerManager or MobileGestalt. [LLVM's source](https://github.com/llvm/llvm-project/blob/main/compiler-rt/lib/builtins/os_version_check.c) corroborates that purpose. `tests/audit-install-loader.mjs` now requires every such call site to be in that specific runtime object/function; unknown references fail closed. This is a narrow evidence-based exception, not permission for application private-API loading.
 
 ## Required gates before installation
 
