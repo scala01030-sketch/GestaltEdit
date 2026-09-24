@@ -32,6 +32,8 @@ jobs:
             -project GestaltEdit.xcodeproj -scheme GestaltEdit \
             -configuration Release -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/InstallCheck.xcarchive" \
+            -derivedDataPath "$RUNNER_TEMP/InstallCheckDerived" \
+            LD_GENERATE_MAP_FILE=YES "LD_MAP_FILE_PATH=$RUNNER_TEMP/installcheck.linkmap.txt" \
             CODE_SIGN_IDENTITY='' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
             PRODUCT_BUNDLE_IDENTIFIER=me.ssus.gestaltedit.installcheck \
             'INFOPLIST_KEY_CFBundleDisplayName=GestaltEdit Install Check' \
@@ -51,6 +53,9 @@ jobs:
           if grep -F CODE_SIGN_ENTITLEMENTS GestaltEdit.xcodeproj/project.pbxproj; then exit 1; fi
           if grep -R -n -E --include='*.swift' --include='*.m' 'URLSession|NSURLSession|NSURLConnection|CFNetwork|NWConnection' GestaltEdit; then exit 1; fi
           nm "$APP/GestaltEdit" > "$RUNNER_TEMP/installcheck.symbols.txt"
+          otool -tvV "$APP/GestaltEdit" > "$RUNNER_TEMP/installcheck.disassembly.txt"
+          grep -n -B 24 -A 8 '_dlsym' "$RUNNER_TEMP/installcheck.disassembly.txt" || true
+          grep -n -E 'Compatibility|\.a\(' "$RUNNER_TEMP/installcheck.linkmap.txt" || true
           if grep -E 'BadQueryLease|BadQueryBridgeAvailable|GestaltReadSnapshot|_(ftruncate|fsync|dlopen|dlsym|xpc_[[:alnum:]_]+)$' "$RUNNER_TEMP/installcheck.symbols.txt"; then
             echo 'Private access or write implementation unexpectedly present.' >&2
             exit 1
@@ -87,3 +92,15 @@ jobs:
             ${{ runner.temp }}/installcheck.libraries.txt
           if-no-files-found: error
           retention-days: 14
+
+      - name: Retain failure-only audit evidence without an IPA
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: Install-check-failure-evidence-NOT-AN-INSTALLER
+          path: |
+            ${{ runner.temp }}/installcheck.linkmap.txt
+            ${{ runner.temp }}/installcheck.disassembly.txt
+            ${{ runner.temp }}/installcheck.symbols.txt
+          if-no-files-found: ignore
+          retention-days: 7
