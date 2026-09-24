@@ -22,6 +22,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// Returns whether the compile-time read-only probe configuration is active.
 + (BOOL)isReadOnlyProbeBuild;
 
+/// Installation/launch check only: no system-cache access implementation exists.
++ (BOOL)isInstallSmokeTestBuild;
+
 /// Returns whether the compile-time safety configuration is internally valid.
 + (BOOL)isBuildConfigurationSafe;
 

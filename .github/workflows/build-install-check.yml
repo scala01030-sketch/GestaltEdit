@@ -1,0 +1,89 @@
+name: Build installation check - no system access
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: installation-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - name: Check out reviewed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Test existing guards and installation-only implementation
+        run: |
+          node tests/verify-source.mjs
+          bash tests/run-safety-tests.sh
+          bash tests/run-install-smoke-tests.sh
+
+      - name: Build unsigned installation check
+        run: |
+          xcodebuild archive \
+            -project GestaltEdit.xcodeproj -scheme GestaltEdit \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/InstallCheck.xcarchive" \
+            CODE_SIGN_IDENTITY='' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
+            PRODUCT_BUNDLE_IDENTIFIER=me.ssus.gestaltedit.installcheck \
+            'INFOPLIST_KEY_CFBundleDisplayName=GestaltEdit Install Check' \
+            SWIFT_ACTIVE_COMPILATION_CONDITIONS=GESTALT_READ_ONLY_BUILD \
+            'GCC_PREPROCESSOR_DEFINITIONS=$(inherited) GESTALT_INSTALL_SMOKE_TEST=1 GESTALT_READ_ONLY_PROBE=1 GESTALT_ENABLE_WRITES=0'
+
+      - name: Audit and package installation check
+        run: |
+          APP="$RUNNER_TEMP/InstallCheck.xcarchive/Products/Applications/GestaltEdit.app"
+          test -d "$APP"
+          test ! -d "$APP/_CodeSignature"
+          test ! -f "$APP/embedded.mobileprovision"
+          test ! -d "$APP/PlugIns"
+          test ! -d "$APP/Frameworks"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")" = me.ssus.gestaltedit.installcheck
+          if find GestaltEdit -name '*.entitlements' -print -quit | grep -q .; then exit 1; fi
+          if grep -F CODE_SIGN_ENTITLEMENTS GestaltEdit.xcodeproj/project.pbxproj; then exit 1; fi
+          if grep -R -n -E --include='*.swift' --include='*.m' 'URLSession|NSURLSession|NSURLConnection|CFNetwork|NWConnection' GestaltEdit; then exit 1; fi
+          nm "$APP/GestaltEdit" > "$RUNNER_TEMP/installcheck.symbols.txt"
+          if grep -E 'BadQueryLease|BadQueryBridgeAvailable|GestaltReadSnapshot|_(ftruncate|fsync|dlopen|dlsym|xpc_[[:alnum:]_]+)$' "$RUNNER_TEMP/installcheck.symbols.txt"; then
+            echo 'Private access or write implementation unexpectedly present.' >&2
+            exit 1
+          fi
+          strings "$APP/GestaltEdit" > "$RUNNER_TEMP/installcheck.strings.txt"
+          grep -F 'Installation check only. System access is not included.' "$RUNNER_TEMP/installcheck.strings.txt"
+          if grep -E 'systemgroup.com.apple.mobilegestaltcache|libsystem_containermanager|sandbox_extension_consume|sandbox_extension_release' "$RUNNER_TEMP/installcheck.strings.txt"; then exit 1; fi
+          otool -L "$APP/GestaltEdit" > "$RUNNER_TEMP/installcheck.libraries.txt"
+          if grep -E '(WebKit|CFNetwork|Network)\.framework' "$RUNNER_TEMP/installcheck.libraries.txt"; then exit 1; fi
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/Payload/"
+          cd "$RUNNER_TEMP"
+          find Payload -type f -exec shasum -a 256 {} \; | LC_ALL=C sort > installcheck.manifest.sha256
+          shasum -a 256 Payload/GestaltEdit.app/GestaltEdit > installcheck.binary.sha256
+          zip -qry GestaltEdit-installcheck-unsigned.ipa Payload
+          shasum -a 256 GestaltEdit-installcheck-unsigned.ipa > installcheck.ipa.sha256
+          {
+            echo 'Installation/launch check ONLY; no Siri AI enablement.'
+            echo "Source commit: $GITHUB_SHA"
+            echo 'Unsigned output is not installation authorization. Signed package audit remains required.'
+            cat installcheck.binary.sha256 installcheck.ipa.sha256
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload installation-check evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: GestaltEdit-INSTALL-CHECK-ONLY-NO-SYSTEM-ACCESS
+          path: |
+            ${{ runner.temp }}/GestaltEdit-installcheck-unsigned.ipa
+            ${{ runner.temp }}/installcheck.ipa.sha256
+            ${{ runner.temp }}/installcheck.binary.sha256
+            ${{ runner.temp }}/installcheck.manifest.sha256
+            ${{ runner.temp }}/installcheck.symbols.txt
+            ${{ runner.temp }}/installcheck.libraries.txt
+          if-no-files-found: error
+          retention-days: 14

@@ -6,6 +6,7 @@
 //  https://github.com/forcequitOS/bad_query
 //
 
+#if !GESTALT_INSTALL_SMOKE_TEST
 #import "BadQueryBridge.h"
 
 #import <dlfcn.h>
@@ -166,3 +167,4 @@ BOOL BadQueryBridgeAvailable(void)
 }
 
 @end
+#endif // !GESTALT_INSTALL_SMOKE_TEST

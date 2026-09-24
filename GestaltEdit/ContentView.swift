@@ -9,6 +9,20 @@ struct ContentView: View {
         Group {
             if !GestaltAccess.isBuildConfigurationSafe() {
                 UnsafeBuildConfigurationView()
+            } else if GestaltAccess.isInstallSmokeTestBuild() {
+                VStack(spacing: 16) {
+                    Image(systemName: "checkmark.shield").font(.system(size: 44))
+                    Text("GestaltEdit 安装自检版")
+                        .font(.title2.weight(.semibold))
+                    Text("INSTALL-CHECK / NO SYSTEM ACCESS")
+                        .font(.caption.monospaced())
+                    Text("系统 Build：\(GestaltAccess.currentOSBuild())")
+                    Text("本页只验证安装与启动。此构建不包含 MobileGestalt 访问、修改或私有沙盒接口，不能启用 Siri AI。")
+                        .multilineTextAlignment(.center)
+                    Text("看到本页后即可退出。不要安装其他版本继续探测。")
+                        .foregroundStyle(.secondary)
+                }
+                .padding(24)
             } else if GestaltAccess.isRunningSupportedOS() && !GestaltAccess.isSystemAccessAllowed() {
                 VStack(spacing: 16) {
                     Image(systemName: "lock.shield").font(.system(size: 44))

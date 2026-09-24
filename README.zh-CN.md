@@ -1,5 +1,7 @@
 > **安全复核分支，不是 Siri AI 正式兼容版。** 已识别 RC `24A435` 和正式版 `24A437`，但在私有 API 调用前阻止系统访问。不要安装旧 fork 产物绕过此限制。下方原作者的下载链接不代表经过本次复核的构建。详见[最终安全复核](docs/FINAL_SAFETY_REVIEW.md)。
 
+> 另有独立的[安装／启动自检版](docs/INSTALL_CHECK.md)，从编译阶段排除系统缓存访问。它不启用 Siri AI，不代表正式版功能适配成功；签名产物仍须另行审核。
+
 <div align="center">
 
 <img src="docs/icon.png" alt="GestaltEdit 应用图标" width="128" height="128">

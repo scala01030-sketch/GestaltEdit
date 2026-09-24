@@ -7,7 +7,6 @@
 //       flags 0x8000000000; directly consumes the sandbox token
 
 #import "GestaltAccess.h"
-#import "BadQueryBridge.h"
 
 #import <errno.h>
 #import <fcntl.h>
@@ -23,6 +22,15 @@
 #define GESTALT_READ_ONLY_PROBE 1
 #endif
 
+#ifndef GESTALT_INSTALL_SMOKE_TEST
+#define GESTALT_INSTALL_SMOKE_TEST 0
+#endif
+
+#if (GESTALT_INSTALL_SMOKE_TEST != 0 && GESTALT_INSTALL_SMOKE_TEST != 1) || \
+    (GESTALT_INSTALL_SMOKE_TEST && (!GESTALT_READ_ONLY_PROBE || GESTALT_ENABLE_WRITES))
+#error "Install smoke tests require read-only configuration without system writes."
+#endif
+
 #if GESTALT_READ_ONLY_PROBE && GESTALT_ENABLE_WRITES
 #error "A read-only probe must not be built with MobileGestalt writes enabled."
 #endif
@@ -32,6 +40,49 @@
     (GESTALT_ENABLE_WRITES + GESTALT_READ_ONLY_PROBE != 1)
 #error "Select exactly one mode using Boolean configuration values."
 #endif
+
+#if GESTALT_INSTALL_SMOKE_TEST
+// A separate installation test, NOT a functional MobileGestalt compatibility fix.
+// No file access or private API bridge is compiled into this implementation.
+@implementation GestaltAccess
++ (instancetype)shared {
+    static GestaltAccess *shared;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{ shared = [GestaltAccess new]; });
+    return shared;
+}
++ (BOOL)isInstallSmokeTestBuild { return YES; }
++ (BOOL)isReadOnlyProbeBuild { return YES; }
++ (BOOL)isBuildConfigurationSafe { return YES; }
++ (BOOL)isRunningSupportedOS { return NO; }
++ (BOOL)isSystemAccessAllowed { return NO; }
++ (BOOL)areWritesEnabled { return NO; }
++ (NSString *)currentOSBuild {
+    char build[256] = {0};
+    size_t length = sizeof(build);
+    if (sysctlbyname("kern.osversion", build, &length, NULL, 0) != 0) return @"unknown";
+    build[sizeof(build) - 1] = '\0';
+    return [NSString stringWithUTF8String:build] ?: @"unknown";
+}
+- (BOOL)connectWithError:(NSError **)error {
+    if (error) *error = [NSError errorWithDomain:@"com.gestaltedit.installcheck" code:100
+        userInfo:@{NSLocalizedDescriptionKey: @"Installation check only. System access is not included."}];
+    return NO;
+}
+- (NSData *)readGestaltDataWithError:(NSError **)error {
+    [self connectWithError:error];
+    return nil;
+}
+- (NSDictionary *)readGestaltWithError:(NSError **)error {
+    [self connectWithError:error];
+    return nil;
+}
+- (BOOL)saveGestalt:(NSDictionary *)plist error:(NSError **)error {
+    return [self connectWithError:error];
+}
+@end
+#else
+#import "BadQueryBridge.h"
 
 static NSString * const kGestaltPlistFileName = @"com.apple.MobileGestalt.plist";
 
@@ -194,6 +245,8 @@ static NSData *GestaltReadSnapshot(NSString *path, NSError **error)
 {
     return GESTALT_READ_ONLY_PROBE == 1;
 }
+
++ (BOOL)isInstallSmokeTestBuild { return NO; }
 
 + (BOOL)isBuildConfigurationSafe
 {
@@ -410,3 +463,4 @@ static NSData *GestaltReadSnapshot(NSString *path, NSError **error)
 }
 
 @end
+#endif // GESTALT_INSTALL_SMOKE_TEST

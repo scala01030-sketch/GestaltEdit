@@ -1,5 +1,7 @@
 > **Safety-review fork: not a Siri AI compatibility release.** RC `24A435` and release `24A437` are recognized but blocked before private-API access. Do not install earlier fork artifacts to bypass this stop. The upstream download links below are not reviewed fork builds. See [safety review](docs/FINAL_SAFETY_REVIEW.md).
 
+> A separate [installation/launch check](docs/INSTALL_CHECK.md) excludes all system-cache access at compile time. It does not enable Siri AI and is not a compatibility workaround.
+
 <div align="center">
 
 <img src="docs/icon.png" alt="GestaltEdit app icon" width="128" height="128">
